@@ -3,6 +3,7 @@ package com.pradeepl.triage.application.consumers;
 import akka.javasdk.annotations.Consume;
 import akka.javasdk.client.ComponentClient;
 import akka.javasdk.consumer.Consumer;
+import com.pradeepl.triage.application.AgentUtils;
 import com.pradeepl.triage.application.IncidentMetrics;
 import com.pradeepl.triage.application.IncidentRegistry;
 import com.pradeepl.triage.application.TriageWorkflow;
@@ -41,11 +42,12 @@ public class IncidentMetricsConsumer extends Consumer {
         
         logger.debug("Updating incident metrics for: {}", workflowId);
 
-        // Extract incident details
-        String service = extractService(state.classificationJson());
-        String severity = extractSeverity(state.classificationJson());
-        double confidence = 0.85; // Default
-        boolean escalation = requiresEscalation(severity);
+        // Extract incident details using shared AgentUtils for consistency
+        String service = AgentUtils.extractServiceFromClassification(state.classificationJson());
+        String severity = AgentUtils.extractSeverity(state.classificationJson());
+        double confidence = AgentUtils.extractConfidenceScore(state.classificationJson(), "overall");
+        if (confidence == 0.0) confidence = 0.85; // Default if not extractable
+        boolean escalation = AgentUtils.requiresImmediateEscalation(state.classificationJson(), state.evidenceLogs());
         int progress = calculateProgress(state.status());
         String title = extractTitle(state.incident());
         String team = determineTeam(service, severity);
@@ -84,29 +86,6 @@ public class IncidentMetricsConsumer extends Consumer {
         return effects().done();
     }
 
-    private String extractService(String classificationJson) {
-        if (classificationJson == null || classificationJson.isBlank()) {
-            return "unknown";
-        }
-        if (classificationJson.contains("payment")) return "payment-service";
-        if (classificationJson.contains("auth")) return "auth-service";
-        if (classificationJson.contains("database")) return "database-service";
-        return "platform-service";
-    }
-
-    private String extractSeverity(String classificationJson) {
-        if (classificationJson == null || classificationJson.isBlank()) {
-            return "P3";
-        }
-        if (classificationJson.contains("critical") || classificationJson.contains("P1")) return "P1";
-        if (classificationJson.contains("high") || classificationJson.contains("P2")) return "P2";
-        if (classificationJson.contains("P4")) return "P4";
-        return "P3";
-    }
-
-    private boolean requiresEscalation(String severity) {
-        return "P1".equals(severity);
-    }
 
     private int calculateProgress(TriageState.Status status) {
         return switch (status) {

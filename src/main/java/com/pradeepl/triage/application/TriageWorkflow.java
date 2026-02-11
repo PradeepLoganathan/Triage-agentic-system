@@ -15,6 +15,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import com.pradeepl.triage.domain.TriageState;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import static java.time.Duration.ofSeconds;
 
 @Component(id = "triage-workflow")
@@ -368,12 +371,20 @@ public class TriageWorkflow extends Workflow<TriageState> {
     // the supported Workflow effect methods. Memory/session visibility is
     // exposed via getState(); agent session reuse happens in all steps.
     
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     private static String toEvidenceJson(TriageState s) {
         String logs = s.evidenceLogs();
         String metrics = s.evidenceMetrics();
         if (logs == null && metrics == null) return "{}";
-        String lj = logs == null ? "null" : '"' + logs.replace("\"", "\\\"") + '"';
-        String mj = metrics == null ? "null" : '"' + metrics.replace("\"", "\\\"") + '"';
-        return "{" + "\"logs\":" + lj + ",\"metrics\":" + mj + "}";
+        try {
+            ObjectNode node = MAPPER.createObjectNode();
+            if (logs != null) node.put("logs", logs);
+            if (metrics != null) node.put("metrics", metrics);
+            return MAPPER.writeValueAsString(node);
+        } catch (Exception e) {
+            logger.warn("Failed to serialize evidence JSON, falling back to empty", e);
+            return "{}";
+        }
     }
 }

@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * PromptInjectionGuardrail detects and blocks prompt injection attacks
@@ -19,6 +20,9 @@ import java.util.List;
 public class PromptInjectionGuardrail implements TextGuardrail {
 
     private static final Logger logger = LoggerFactory.getLogger(PromptInjectionGuardrail.class);
+
+    private static final Pattern SYSTEM_OVERRIDE_PATTERN =
+        Pattern.compile("(?m)^\\s*system:\\s*.*");
 
     private static final List<String> INJECTION_PATTERNS = List.of(
         "ignore previous instructions",
@@ -55,7 +59,7 @@ public class PromptInjectionGuardrail implements TextGuardrail {
         }
 
         // Check for system: only at start of line (more specific)
-        if (lowerText.matches("(?m)^\\s*system:\\s*.*")) {
+        if (SYSTEM_OVERRIDE_PATTERN.matcher(lowerText).find()) {
             logger.warn("Prompt injection detected: system override attempt");
             return new Result(false, "Potential prompt injection detected: system override");
         }
